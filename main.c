@@ -9,6 +9,8 @@
 #define LEAF 1;
 #define STOP 2;
 
+//test comment
+
 //#include "../bit_stream/bit_stream.h"
 
 /*

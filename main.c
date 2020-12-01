@@ -311,37 +311,7 @@ huff_tree *create_huff_tree(FILE *input) {
 }
 
 
-//--------not so shit-code--------- couse been fixed (once)
-void create_code_table2(huff_tree *tree, bit_code *table, bit_code code) {
-  if (tree) {
-    if (tree->left == NULL && tree->right == NULL) {
-      if (tree->freq != 0) { //usual symbols
-		cp_arr(table[tree->sym].bit_arr, code.bit_arr, 8);
-        table[tree->sym].leng = code.leng;
-      }
-      else { //stop sequence (after all usual symbols at 256-th index)
-		cp_arr(table[256].bit_arr, code.bit_arr, 8);
-        table[256].leng = -code.leng;
-      }
-    }
-    if (tree->left != NULL && tree->right != NULL) {
-      int byte_num = code.leng / 8;
-      int bit_num = code.leng % 8;
-
-      code.leng++;
-
-      //set_nth_bit(&(code.bit_arr[byte_num]), bit_num, 0);
-      CLR_BIT(code.bit_arr[byte_num], bit_num);
-      create_code_table2(tree->left, table, code);
-
-
-      //set_nth_bit(&(code.bit_arr[byte_num]), bit_num, 1);
-      SET_BIT(code.bit_arr[byte_num], bit_num);
-      create_code_table2(tree->right, table, code);
-    }
-  }
-}
-
+//--------not so shit-code---------
 void create_code_table(huff_tree *tree, bit_code *table, bit_code code) {
 	if (tree) {
 		switch (tree->type) {
@@ -391,6 +361,7 @@ void write_huff_tree(bit_stream *output, huff_tree *tree) {
 void encode_text(FILE *input, bit_code *table, bit_stream *output) {
   unsigned char sym;
   while (fread(&sym, sizeof(char), 1, input)) {
+  	//write_bits(output, table[sym].bit_arr, table[sym].leng);
     bit_code code = table[sym];
     for (int i = 0; i < code.leng; i++) {
       int byte = code.bit_arr[i / 8];
@@ -485,6 +456,65 @@ int read_encoded_sym(bit_stream *input, huff_tree *tree, unsigned char *sym) {
 	return tree->type == LEAF; //or !(tree->type)
 }
 
+//--------------------static tree------------------------------------------
+typedef struct stc_tree {
+	int children[2];
+} stc_tree;
+
+int get_tree_size(huff_tree *root) {
+	if (root) {
+		int left_size = get_tree_size(root->left);
+		int right_size = get_tree_size(root->right);
+		return left_size + right_size + 1;
+	}
+	return 0;
+}
+
+int dyn_to_stc(huff_tree *root, stc_tree *stc_root, int index, int free_space) {
+	if (root->left) {
+		stc_root[index].children[0] = ++free_space;
+		free_space = dyn_to_stc(root->left, stc_root, stc_root[index].children[0], free_space);
+	}
+	if (root->right) {
+		stc_root[index].children[1] = ++free_space;
+		free_space = dyn_to_stc(root->right, stc_root, stc_root[index].children[1], free_space);
+	}
+	if (root->left == NULL && root->right == NULL) {
+		stc_root[index].children[0] = -(root->type + 1);
+		stc_root[index].children[1] = -(root->sym);
+	}
+	return free_space;
+}
+//--------------------static tree------------------------------------------
+
+int read_encoded_sym2(bit_stream *input, stc_tree *tree, unsigned char *sym) {
+	int bit;
+	int index = 0;
+	while (tree[index].children[0] > 0) {
+		read_bit(input, &bit);
+		index = tree[index].children[bit];
+	}
+	*sym = -(tree[index].children[1]);
+	int type = -(tree[index].children[0]) - 1;
+	return type == LEAF;
+}
+
+int decode_text2(bit_stream *input, FILE *output, stc_tree *tree) {
+	unsigned char sym;
+	int read_res;
+
+	while ( (read_res = read_encoded_sym2(input, tree, &sym)) ) {
+		fwrite(&sym, sizeof(char), 1, output);
+	}
+
+	if (read_res == 0) {
+		return 1; //all is ok
+	}
+	else {
+		return -1; //something wrong with reading
+	}
+}
+
 int decode_text(bit_stream *input, FILE *output, huff_tree *tree) {
 	unsigned char sym;
 	int read_res;
@@ -507,10 +537,15 @@ int decode(const char *input_path, const char *output_path) {
 
 	huff_tree *tree = read_tree(input);
 
+	int tree_size = get_tree_size(tree);
+	stc_tree *stc = (stc_tree*)malloc(sizeof(stc_tree) * tree_size);
+	dyn_to_stc(tree, stc, 0, 0);
+
 	//printf("\n");
 	//print_tree(tree);
 
-	decode_text(input, output, tree);
+	//decode_text(input, output, tree);
+	decode_text2(input, output, stc);
 
 	close_bs(input);
 	fclose(output);

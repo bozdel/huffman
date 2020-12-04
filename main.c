@@ -9,9 +9,9 @@
 #define STOP 1
 #define INTERNAL 2
 
-#define GET_BIT(a,n) ( ((a) & (1 << (n))) >> (n) )
-#define SET_BIT(a,n) ( (a) |= (1 << (n))       )
-#define CLR_BIT(a,n) ( (a) &= (~(1 << (n)))    )
+#define GET_BIT(a,n) ( ((a) >> (n)) & 1     )
+#define SET_BIT(a,n) ( (a) |= (1 << (n))    )
+#define CLR_BIT(a,n) ( (a) &= (~(1 << (n))) )
 
 //#include "../bit_stream/bit_stream.h"
 
@@ -34,15 +34,8 @@ typedef struct huff_tree {
 
 typedef struct bit_code {
 	char leng; //zero leng - internal, negative - safeword (end of file)
-	char bit_arr[8]; //encoded symbol
+	long int code; //encoded symbol
 } bit_code;
-
-void print_sym_bin(unsigned char sym) {
-	for (int i = 0; i < 8; i++) {
-		printf("%d ", sym % 2);
-		sym >>= 1;
-	}
-}
 
 //-------------from bit_stream-----------------
 #define BUFF_SIZE 1000
@@ -55,39 +48,18 @@ typedef struct {
     int pos;
 } bit_stream;
 
-void set_nth_bit(unsigned char *byte, int n, int bit) {
-    //clearing nth bit
-    *byte = *byte & (~(1 << n));
-    //setting bit
-    *byte = *byte | bit << n;
-}
-
-int get_nth_bit(unsigned char byte, int n) {
-    return byte >> n & 1;
-}
-
 //need to rename this func. it doesn't reflect the essence of func
 void flush_buff(bit_stream *stream, int flushing_size) {
     if (flushing_size == ALL) {
       unsigned char *cur_byte = &(stream->buff[stream->pos / 8]);
       while (stream->pos % 8 != 0) {
-        //set_nth_bit(cur_byte, stream->pos % 8, 0);
         CLR_BIT(*cur_byte, stream->pos % 8);
         stream->pos++;
       }
       fwrite(stream->buff, sizeof(char), stream->pos / 8, stream->file);
-	  //debug
-	  /*for (int i = 0; i < stream->pos / 8; i++) {
-		  print_sym_bin(stream->buff[i]);
-	  }*/
-	  //debug
     }
+
     fwrite(stream->buff, sizeof(char), flushing_size, stream->file);
-	//debug
-	/*for (int i = 0; i < flushing_size; i++) {
-		print_sym_bin(stream->buff[i]);
-	}*/
-	//debug
 	for (int i = 0; i < BUFF_SIZE - flushing_size; i++) {
 		stream->buff[i] = stream->buff[i + flushing_size];
 	}
@@ -118,7 +90,6 @@ void write_bit(bit_stream *stream, int bit) {
 
     unsigned char *cur_byte = &(stream->buff[stream->pos / 8]);
 
-    //set_nth_bit(cur_byte, stream->pos % 8, bit);
     if (bit) {
     	SET_BIT(*cur_byte, stream->pos % 8);
     }
@@ -129,7 +100,7 @@ void write_bit(bit_stream *stream, int bit) {
     stream->pos++;
 }
 
-void write_sym2(bit_stream *stream, unsigned char sym) {
+/*void write_sym2(bit_stream *stream, unsigned char sym) {
 	if (stream->pos == -1) stream->pos = 0; //shit code
     if (stream->pos + 8 > BUFF_SIZE * 8) flush_buff(stream, BUFF_SIZE - 1);
 
@@ -144,7 +115,7 @@ void write_sym2(bit_stream *stream, unsigned char sym) {
 
         stream->pos++;
     }
-}
+}*/
 
 void write_sym(bit_stream *stream, unsigned char sym) {
 	for (int i = 0; i < 8; i++) {
@@ -164,7 +135,6 @@ int read_bit(bit_stream *stream, int *bit) {
 
 	unsigned char cur_byte = stream->buff[stream->pos / 8];
 
-	//*bit = get_nth_bit(cur_byte, stream->pos % 8);
 	*bit = GET_BIT(cur_byte, stream->pos % 8);
 
 	stream->pos++;
@@ -172,7 +142,7 @@ int read_bit(bit_stream *stream, int *bit) {
 	return 1;
 }
 
-int read_sym2(bit_stream *stream, unsigned char *sym) {
+/*int read_sym2(bit_stream *stream, unsigned char *sym) {
 	if (stream->pos + 8 > BUFF_SIZE * 8 || stream->pos == -1) {
 		int readed = fread(stream->buff, sizeof(char), BUFF_SIZE - 1, stream->file);
 		if (!readed) {
@@ -198,13 +168,12 @@ int read_sym2(bit_stream *stream, unsigned char *sym) {
 	}
 
 	return 1;
-}
+}*/
 
 int read_sym(bit_stream *stream, unsigned char *sym) {
 	int bit;
 	for (int i = 0; i < 8; i++) {
 		read_bit(stream, &bit);
-		//set_nth_bit(sym, i, bit);
 		if (bit) {
 			SET_BIT(*sym, i);
 		}
@@ -214,14 +183,6 @@ int read_sym(bit_stream *stream, unsigned char *sym) {
 	}
 }
 //-------------from bit_stream-----------------
-
-void print_tree(huff_tree *tree) {
-	if (tree) {
-		printf("%c(%d) ", tree->sym, tree->sym);
-		print_tree(tree->left);
-		print_tree(tree->right);
-	}
-}
 
 huff_tree *create_node(unsigned char sym, char type, int freq) {
 	huff_tree *node = (huff_tree*)malloc(sizeof(huff_tree));
@@ -234,14 +195,6 @@ huff_tree *create_node(unsigned char sym, char type, int freq) {
 	return node;
 }
 
-
-
-void cp_arr(char *destination, char *source, int size) {
-	for (int i = 0; i < size; i++) {
-		destination[i] = source[i];
-	}
-}
-
 void insertion_sort(huff_tree *array, int leng) {
     for (int i = 0; i < leng - 1; i++) {
         int j;
@@ -252,8 +205,6 @@ void insertion_sort(huff_tree *array, int leng) {
         array[j + 1] = tmp;
     }
 }
-
-
 
 huff_tree *remove_zeros(huff_tree *arr) {
   int i = 0;
@@ -314,27 +265,24 @@ huff_tree *create_huff_tree(FILE *input) {
 //--------not so shit-code---------
 void create_code_table(huff_tree *tree, bit_code *table, bit_code code) {
 	if (tree) {
+		int bit_num;
 		switch (tree->type) {
 			case LEAF:
-				cp_arr(table[tree->sym].bit_arr, code.bit_arr, 8);
+				table[tree->sym].code = code.code;
 				table[tree->sym].leng = code.leng;
 				break;
 			case STOP:
 				//at 256-th index lies stop sequence
-				cp_arr(table[256].bit_arr, code.bit_arr, 8);
-				table[256].leng = -code.leng;
+				table[256].code = code.code;
+				table[256].leng = code.leng;
 				break;
 			case INTERNAL:
-				;
-				int byte_num = code.leng / 8;
-				int bit_num = code.leng % 8;
+				bit_num = code.leng++;
 
-				code.leng++;
-
-				CLR_BIT(code.bit_arr[byte_num], bit_num);
+				CLR_BIT(code.code, bit_num);
 				create_code_table(tree->left, table, code);
 
-				SET_BIT(code.bit_arr[byte_num], bit_num);
+				SET_BIT(code.code, bit_num);
 				create_code_table(tree->right, table, code);
 				break;
 			default:
@@ -359,27 +307,19 @@ void write_huff_tree(bit_stream *output, huff_tree *tree) {
 }
 
 void encode_text(FILE *input, bit_code *table, bit_stream *output) {
-  unsigned char sym;
-  while (fread(&sym, sizeof(char), 1, input)) {
-  	//write_bits(output, table[sym].bit_arr, table[sym].leng);
-    bit_code code = table[sym];
-    for (int i = 0; i < code.leng; i++) {
-      int byte = code.bit_arr[i / 8];
-      //int bit = get_nth_bit(byte, i % 8);
-      int bit = GET_BIT(byte, i % 8);
-      write_bit(output, bit);
-	  //printf("%d ", bit);
-    }
-  }
-  //write safeword
-  bit_code code = table[256];
-  for (int i = 0; i < -code.leng; i++) {
-    int byte = code.bit_arr[i / 8];
-    //int bit = get_nth_bit(byte, i % 8);
-    int bit = GET_BIT(byte, i % 8);
-    write_bit(output, bit);
-	//printf("%d ", bit);
-  }
+	unsigned char sym;
+	while (fread(&sym, sizeof(char), 1, input)) {
+		//write_bits(output, table[sym].bit_arr, table[sym].leng);
+		bit_code code = table[sym];
+		for (int i = 0; i < code.leng; i++) {
+			write_bit(output, GET_BIT(code.code, i));
+		}
+	}
+	//write safeword
+	bit_code code = table[256];
+	for (int i = 0; i < code.leng; i++) {
+		write_bit(output, GET_BIT(code.code, i));
+	}
 }
 
 
@@ -456,6 +396,22 @@ int read_encoded_sym(bit_stream *input, huff_tree *tree, unsigned char *sym) {
 	return tree->type == LEAF; //or !(tree->type)
 }
 
+int decode_text(bit_stream *input, FILE *output, huff_tree *tree) {
+	unsigned char sym;
+	int read_res;
+
+	while ( (read_res = read_encoded_sym(input, tree, &sym)) ) {
+		fwrite(&sym, sizeof(char), 1, output);
+	}
+
+	if (read_res == 0) {
+		return 1; //all is ok
+	}
+	else {
+		return -1; //something wrong with reading
+	}
+}
+
 //--------------------static tree------------------------------------------
 typedef struct stc_tree {
 	int children[2];
@@ -487,49 +443,125 @@ int dyn_to_stc(huff_tree *root, stc_tree *stc_root, int index, int free_space) {
 }
 //--------------------static tree------------------------------------------
 
-int read_encoded_sym2(bit_stream *input, stc_tree *tree, unsigned char *sym) {
-	int bit;
-	int index = 0;
-	while (tree[index].children[0] > 0) {
-		read_bit(input, &bit);
-		index = tree[index].children[bit];
-	}
-	*sym = -(tree[index].children[1]);
-	int type = -(tree[index].children[0]) - 1;
-	return type == LEAF;
-}
 
 int decode_text2(bit_stream *input, FILE *output, stc_tree *tree) {
 	unsigned char sym;
-	int read_res;
+	int index = 0;
+	int leaf_type = INTERNAL;
 
-	while ( (read_res = read_encoded_sym2(input, tree, &sym)) ) {
-		fwrite(&sym, sizeof(char), 1, output);
-	}
-
-	if (read_res == 0) {
-		return 1; //all is ok
-	}
-	else {
-		return -1; //something wrong with reading
+	while (leaf_type != STOP) {
+		while (tree[index].children[0] > 0) {
+			int bit;
+			read_bit(input, &bit);
+			index = tree[index].children[bit];
+		}
+		leaf_type = -(tree[index].children[0]) - 1;
+		sym = -(tree[index].children[1]);
+		index = 0;
+		if (leaf_type == LEAF) {
+			putc(sym, output);
+		}
 	}
 }
 
-int decode_text(bit_stream *input, FILE *output, huff_tree *tree) {
-	unsigned char sym;
-	int read_res;
+/*typedef struct tree16 {
+	int children[16];
+} tree16;
 
-	while ( (read_res = read_encoded_sym(input, tree, &sym)) ) {
-		fwrite(&sym, sizeof(char), 1, output);
+int get_size_block(huff_tree *tree, int depth) {
+	if (root) {
+		int left_size = get_size_block(root->left, (depth + 1) % 4);
+		int right_size = get_size_block(root->right, (depth + 1) % 4);
+		return left_size + right_size + !depth; // depth == 0 means entering in new block
 	}
+	return 0;
+}
 
-	if (read_res == 0) {
-		return 1; //all is ok
+void tree_to_tree16(huff_tree *root, tree16 *root16, int index, int free_space, int child_num, int depth) {
+	if (root->left) {
+		if (!depth) {
+			root16[index],children[child_num] = ++free_space;
+			tree_to_tree16(root->left, root16, root16[index].children[child_num], free_space, (child_num * 2) % 16, (depth + 1) % 4);
+		}
+		else {
+			tree_to_tree16(root->left, root16, index, free_space, (child_num * 2) % 16, (depth + 1) % 4);
+		}
 	}
-	else {
-		return -1; //something wrong with reading
+	if (root->right) {
+		if (!depth) {
+			root16[index].children[child_num] = ++free_space;
+			tree_to_tree16(root->right, root16, root16[index].children[child_num], free_space, (child_num * 2 + 1) % 16, (depth + 1) % 4);
+		}
+		else {
+			tree_to_tree16(root->right, root16, index, free_space, (children * 2 + 1) % 16, (depth + 1) % 4);
+		}
+	}
+	if (root->left == NULL && root->right == NULL) {
+		for (int i = child_num; i < (1 << (3 - depth)); i++) {
+			root16[index].children[i] = -(root->sym);
+		}
 	}
 }
+
+
+
+int foo(FILE *input, FILE *output, stc_tree *tree) {
+	char sym;
+	char outsym;
+	int index = 0;
+	char leaf_type = INTERNAL; //or LEAF
+
+	while (leaf_type != STOP) {
+		sym = (char)getc(input);
+
+		for (int n = 7; n >= 0; n--) {
+
+			if (tree[index].children[0] < 0) {
+				left_type = -(tree[index].children[0]) - 1;
+				outsym = -(tree[index].children[1])
+				putc(output, outsym);
+				index = 0;
+			}
+			else {
+				index = tree[index].children[GET_BIT(sym, n)];
+			}
+
+		}
+	}
+}
+
+union bar {
+	short int i;
+	char alo[2];
+};
+
+int foo2(FILE *input, FILE *output, tree16 *tree) {
+
+	unsigned char mask = ~((1 << 4) - 1);
+	union bar buff;
+	while (leaf_type != STOP) {
+		getc(buff.alo[1]);
+		while (buff.alo[1] > 0) {
+			if (tree[index].children[0] < 0) {
+				//left_type = -(tree[index].children[0]) - 1;
+				//outsym = -(tree[index].children[baz]);
+				int data_index = -tree[index].children[baz];
+				leaf_type = data[data_index].type;
+				outsym = data[data_index].sym;
+				int offset = data[data_index].offset;
+				putc(output, outsym);
+				index = 0;
+				buff.i >>= offset;
+			}
+			else {
+				baz = buff.alo[0] & mask;
+				index = tree[index].children[baz];
+				buff.i <<= 4;
+			}
+		}
+	}
+}*/
+
 
 int decode(const char *input_path, const char *output_path) {
 	FILE *output = fopen(output_path, "wb");
@@ -541,39 +573,12 @@ int decode(const char *input_path, const char *output_path) {
 	stc_tree *stc = (stc_tree*)malloc(sizeof(stc_tree) * tree_size);
 	dyn_to_stc(tree, stc, 0, 0);
 
-	//printf("\n");
-	//print_tree(tree);
-
-	//decode_text(input, output, tree);
 	decode_text2(input, output, stc);
 
 	close_bs(input);
 	fclose(output);
 
 	return 0;
-}
-
-void read_bin(FILE *file) {
-    unsigned char sym;
-    while (fread(&sym, sizeof(char), 1, file)) {
-        print_sym_bin(sym);
-    }
-    printf("\n");
-}
-
-void read_bin_buff(bit_stream *bs) {
-	int bit;
-	while (read_bit(bs, &bit)) {
-		printf("%d ", bit);
-	}
-	printf("\n");
-}
-
-void print_arr(int arr[], int leng) {
-	for (int i = 0; i < leng; i++) {
-		printf("%d ", arr[i]);
-	}
-	printf("\n");
 }
 
 float get_entropy(FILE *file) {
@@ -668,35 +673,6 @@ int main(int argc, char *argv[]) {
 			printf("decode time: %f\n", (float)(dec_end - dec_beg) / CLOCKS_PER_SEC);
 		}
 	}
-
-	return 0;
-}
-
-int main2(int argc, char *argv[]) {
-	/*char *input_enc_path = "/home/vyacheslav/code/C/other1/huffman/test.jpg";
-	char *output_enc_path = "/home/vyacheslav/code/C/other1/huffman/encoded.txt";
-
-	char *input_dec_path = output_enc_path;
-	char *output_dec_path = "/home/vyacheslav/code/C/other1/huffman/decoded.jpg";*/
-
-	char *input_enc_path = argv[1];
-	char *output_dec_path = argv[2];
-	char *output_enc_path = (char*)malloc(sizeof(char) * 100);
-	strcpy(output_enc_path, input_enc_path);
-	strcat(output_enc_path, ".hh");
-	char *input_dec_path = output_enc_path;
-
-	clock_t beg = clock();
-	encode(input_enc_path, output_enc_path);
-	clock_t end = clock();
-
-	clock_t beg2 = clock();
-	decode(input_dec_path, output_dec_path);
-	clock_t end2 = clock();
-
-	float enc_t = (float)(end - beg) / CLOCKS_PER_SEC;
-	float dec_t = (float)(end2 - beg2) / CLOCKS_PER_SEC;
-	printf("encode time: %f\ndecode time: %f\n", enc_t, dec_t);
 
 	return 0;
 }

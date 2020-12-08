@@ -674,5 +674,11 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
+	if(!opts.keep) {
+		if(remove(opts.input_fpath) == -1) {
+			printf("error removing file\n");
+		}
+	}
+
 	return 0;
 }

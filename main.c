@@ -651,10 +651,19 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 	if (!opts.output_fpath) {
-		char *output = (char*)malloc(sizeof(char) * strlen(opts.input_fpath) + 3);
-		strcpy(output, opts.input_fpath);
-		strcat(output, ".hh");
-		opts.output_fpath = output;
+		//encode
+		if (opts.type) {
+			char *output = (char*)malloc(sizeof(char) * strlen(opts.input_fpath) + 3);
+			strcpy(output, opts.input_fpath);
+			strcat(output, ".hh");
+			opts.output_fpath = output;
+		}
+		//decode
+		else {
+			char *output = (char*)malloc(sizeof(char) * strlen(opts.input_fpath) - 3);
+			memcpy(output, opts.input_fpath, strlen(opts.input_fpath) - 3);
+			opts.output_fpath = output;
+		}
 	}
 
 	if (opts.type) {

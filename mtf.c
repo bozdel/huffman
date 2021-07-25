@@ -10,7 +10,8 @@
 //move-to-front transformation
 //could be modified (improve speed to N*logM, N - l(string), M - |alphabet|)
 void mtf(const char *string, int leng, char *out_string) {
-	unsigned char *syms = (char*)malloc(sizeof(char) * 256);
+	unsigned char syms[256];
+	// unsigned char *syms = (char*)malloc(sizeof(char) * 256);
 	for (int i = 0; i < 256; i++) {
 		syms[i] = i;
 	}
@@ -30,11 +31,38 @@ void mtf(const char *string, int leng, char *out_string) {
 		//moving to front readed sym
 		syms[cur_sym] = 0;
 	}
-	free(syms);
+	// free(syms);
+}
+
+void mtf2(const char *string, int leng, char *out_string) {
+	unsigned char syms[256];
+	unsigned char inds[256];
+
+	for (int i = 0; i < 256; i++) {
+		syms[i] = i;
+		inds[i] = i;
+	}
+
+	for (int i = 0; i < leng; i++) {
+		unsigned char cur_sym = string[i];
+
+		unsigned char out_sym = syms[cur_sym];
+
+		unsigned char tmpi = inds[out_sym];
+		for (int i = out_sym; i > 0; i--) {
+			inds[i] = inds[i - 1];
+			syms[inds[i - 1]]++;
+		}
+		inds[0] = tmpi;
+		syms[tmpi] = 0;
+
+		out_string[i] = out_sym;
+	}
 }
 
 void inverse_mtf(const char *string, int leng, char *out_string) {
-	unsigned char *syms = (char*)malloc(sizeof(char) * 256);
+	unsigned char syms[256];
+	// unsigned char *syms = (char*)malloc(sizeof(char) * 256);
 	for (int i = 0; i < 256; i++) {
 		syms[i] = i;
 	}
@@ -57,7 +85,7 @@ void inverse_mtf(const char *string, int leng, char *out_string) {
 		//writing this sym
 		out_string[i] = out_sym;
 	}
-	free(syms);
+	// free(syms);
 }
 
 int encode(char *in_path, char *out_path) {
@@ -68,8 +96,8 @@ int encode(char *in_path, char *out_path) {
 	
 	int readed;
 	while ( (readed = fread(buffer, sizeof(char), BLOCK_SIZE, ifile)) ) {
-		mtf(buffer, readed, out_buffer);
-		fwrite(&readed, sizeof(int), 1, ofile) * sizeof(int);
+		mtf2(buffer, readed, out_buffer);
+		fwrite(&readed, sizeof(int), 1, ofile);
 		fwrite(out_buffer, sizeof(char), readed, ofile);
 	}
 	
@@ -88,7 +116,7 @@ int decode(char *in_path, char *out_path) {
 
 	int readed = 1;
 	while (readed) {
-		fread(&blk_size, sizeof(int), 1, ifile) * sizeof(int);
+		fread(&blk_size, sizeof(int), 1, ifile);
 		readed = fread(buffer, sizeof(char), blk_size, ifile);
 
 		if (readed) {

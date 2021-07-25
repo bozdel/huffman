@@ -4,16 +4,20 @@
 #include <string.h>
 #include <math.h>
 #include <unistd.h>
+#include "bit_stream.h"
 
 #define LEAF 0
 #define STOP 1
 #define INTERNAL 2
 
-#define GET_BIT(a,n) ( ((a) >> (n)) & 1     )
-#define SET_BIT(a,n) ( (a) |= (1 << (n))    )
+#define ENC 1
+#define DEC 0
+
+#define GET_BIT(a,n) ( ((a) >> (n)) & 1		)
+#define SET_BIT(a,n) ( (a) |= (1 << (n))	)
 #define CLR_BIT(a,n) ( (a) &= (~(1 << (n))) )
 
-//#include "../bit_stream/bit_stream.h"
+
 
 struct huff_opt {
 	const char *input_fpath;
@@ -37,152 +41,31 @@ typedef struct bit_code {
 	long int code; //encoded symbol
 } bit_code;
 
-//-------------from bit_stream-----------------
-#define BUFF_SIZE 1000
-#define ALL 0
 
-//try to add dllist *cur_byte
-typedef struct {
-    FILE *file;
-    unsigned char *buff;
-    int pos;
-} bit_stream;
-
-//need to rename this func. it doesn't reflect the essence of func
-void flush_buff(bit_stream *stream, int flushing_size) {
-    if (flushing_size == ALL) {
-      unsigned char *cur_byte = &(stream->buff[stream->pos / 8]);
-      while (stream->pos % 8 != 0) {
-        CLR_BIT(*cur_byte, stream->pos % 8);
-        stream->pos++;
-      }
-      fwrite(stream->buff, sizeof(char), stream->pos / 8, stream->file);
-    }
-
-    fwrite(stream->buff, sizeof(char), flushing_size, stream->file);
-	for (int i = 0; i < BUFF_SIZE - flushing_size; i++) {
-		stream->buff[i] = stream->buff[i + flushing_size];
+void print_bin(bit_code code) {
+	for (int i = 0; i < code.leng; i++) {
+		printf("%d", GET_BIT(code.code, i));
 	}
-    stream->pos -= flushing_size * 8;
+	printf("\n");
 }
 
-bit_stream *open_bs(const char *path, char *type) {
-    bit_stream *stream = (bit_stream*)malloc(sizeof(bit_stream));
-
-    stream->buff = (unsigned char*)calloc(BUFF_SIZE, sizeof(char));
-    stream->file = fopen(path,type);
-    stream->pos = -1;
-
-    return stream;
-}
-
-void close_bs(bit_stream *stream) {
-	//complete writing (zeros)
-	flush_buff(stream, ALL);
-    fclose(stream->file);
-    free(stream->buff);
-    free(stream);
-}
-
-void write_bit(bit_stream *stream, int bit) {
-	if (stream->pos == -1) stream->pos = 0; //shit code
-    if (stream->pos + 1 > BUFF_SIZE * 8) flush_buff(stream, BUFF_SIZE);
-
-    unsigned char *cur_byte = &(stream->buff[stream->pos / 8]);
-
-    if (bit) {
-    	SET_BIT(*cur_byte, stream->pos % 8);
-    }
-    else {
-    	CLR_BIT(*cur_byte, stream->pos % 8);
-    }
-
-    stream->pos++;
-}
-
-/*void write_sym2(bit_stream *stream, unsigned char sym) {
-	if (stream->pos == -1) stream->pos = 0; //shit code
-    if (stream->pos + 8 > BUFF_SIZE * 8) flush_buff(stream, BUFF_SIZE - 1);
-
-    unsigned char *cur_byte;
-
-    int bit;
-    for (int i = 0; i < 8; i++) {
-        cur_byte = &(stream->buff[stream->pos / 8]);
-
-        bit = get_nth_bit(sym, i);
-        set_nth_bit(cur_byte, stream->pos % 8, bit);
-
-        stream->pos++;
-    }
-}*/
-
-void write_sym(bit_stream *stream, unsigned char sym) {
-	for (int i = 0; i < 8; i++) {
-		write_bit(stream, sym & 1);
-		sym >>= 1;
+void print_bin_bits(long int bits, int size) {
+	for (int i = 0; i < size; i++) {
+		printf("%d", GET_BIT(bits, i));
 	}
+	printf(" ");
 }
 
-int read_bit(bit_stream *stream, int *bit) {
-	if (stream->pos + 1 > BUFF_SIZE * 8 || stream->pos == -1) {
-		int readed = fread(stream->buff, sizeof(char), BUFF_SIZE, stream->file);
-		if (!readed) {
-			return 0;
-		}
-		stream->pos = 0;
-	}
-
-	unsigned char cur_byte = stream->buff[stream->pos / 8];
-
-	*bit = GET_BIT(cur_byte, stream->pos % 8);
-
-	stream->pos++;
-
-	return 1;
-}
-
-/*int read_sym2(bit_stream *stream, unsigned char *sym) {
-	if (stream->pos + 8 > BUFF_SIZE * 8 || stream->pos == -1) {
-		int readed = fread(stream->buff, sizeof(char), BUFF_SIZE - 1, stream->file);
-		if (!readed) {
-			return 0;
-		}
-		//shifting buffer
-		unsigned char tmp = stream->buff[BUFF_SIZE - 1];
-		for (int i = BUFF_SIZE - 2; i > 0; i--) {
-			stream->buff[i + 1] = stream->buff[i];
-		}
-		stream->buff[0] = tmp;
-
-		stream->pos -= (BUFF_SIZE - 1) * 8;
-	}
-
-	for (int i = 0; i < 8; i++) {
-		unsigned char cur_byte = stream->buff[stream->pos / 8];
-
-		int bit = get_nth_bit(cur_byte, stream->pos % 8);
-		set_nth_bit(sym, i, bit);
-
-		stream->pos++;
-	}
-
-	return 1;
-}*/
-
-int read_sym(bit_stream *stream, unsigned char *sym) {
-	int bit;
-	for (int i = 0; i < 8; i++) {
-		read_bit(stream, &bit);
-		if (bit) {
-			SET_BIT(*sym, i);
-		}
-		else {
-			CLR_BIT(*sym, i);
+void print_table(bit_code *table) {
+	for (int i = 0; i < 256; i++) {
+		if (table[i].leng > 0) {
+			printf("%c: ", i);
+			print_bin(table[i]);
 		}
 	}
+	printf("stop: ");
+	print_bin(table[256]);
 }
-//-------------from bit_stream-----------------
 
 huff_tree *create_node(unsigned char sym, char type, int freq) {
 	huff_tree *node = (huff_tree*)malloc(sizeof(huff_tree));
@@ -195,27 +78,37 @@ huff_tree *create_node(unsigned char sym, char type, int freq) {
 	return node;
 }
 
+void free_tree(huff_tree *root) {
+	if (root) {
+		free_tree(root->left);
+		free_tree(root->right);
+		free(root);
+	}
+}
+
 void insertion_sort(huff_tree *array, int leng) {
-    for (int i = 0; i < leng - 1; i++) {
-        int j;
-        huff_tree tmp = array[i + 1];
-        for (j = i; j >= 0 && tmp.freq < array[j].freq; j--) {
-            array[j + 1] = array[j];
-        }
-        array[j + 1] = tmp;
-    }
+	for (int i = 0; i < leng - 1; i++) {
+		int j;
+		huff_tree tmp = array[i + 1];
+		for (j = i; j >= 0 && tmp.freq < array[j].freq; j--) {
+			array[j + 1] = array[j];
+		}
+		array[j + 1] = tmp;
+	}
 }
 
 huff_tree *remove_zeros(huff_tree *arr) {
-  int i = 0;
-  huff_tree *head = NULL;
-  while (i < 256 && arr[i].freq == 0) i++;
-  head = &arr[i];
-  for ( ; i < 255; i++) {
-    arr[i].next = &arr[i+1];
-  }
-  arr[255].next = NULL;
-  return head;
+	huff_tree *head = NULL;
+
+	int i = 0;
+	while (i < 256 && arr[i].freq == 0) i++;
+	head = &arr[i]; // fix possible error: "i" can be 256 which means out of boundaries (arr[256])
+
+	for ( ; i < 255; i++) {
+		arr[i].next = &arr[i+1];
+	}
+	arr[255].next = NULL;
+	return head;
 }
 
 void insert_node(huff_tree **head, huff_tree *node) {
@@ -227,8 +120,9 @@ void insert_node(huff_tree **head, huff_tree *node) {
 	*current = node;
 }
 
-huff_tree *create_huff_tree(FILE *input) {
+huff_tree *create_huff_tree(FILE *input, huff_tree **mem_block_ptr) {
 	huff_tree *freqs = (huff_tree*)calloc(256, sizeof(huff_tree));
+	*mem_block_ptr = freqs; //for further freeing tree
 
 	//getting symbols' frequencies
 	unsigned char sym;
@@ -241,7 +135,7 @@ huff_tree *create_huff_tree(FILE *input) {
 	insertion_sort(freqs, 256);
 
 	//removing redundant structs for unused symbols. making list
-	huff_tree *head = remove_zeros(freqs);                                           //!!!---fix memory leaking---!!!
+	huff_tree *head = remove_zeros(freqs);										   //!!!---fix memory leaking---!!!
 
 	//adding safeword to denote end of file
 	huff_tree *safeword = (huff_tree*)calloc(1, sizeof(huff_tree));
@@ -296,7 +190,7 @@ void write_huff_tree(bit_stream *output, huff_tree *tree) {
 		if (tree->type != INTERNAL) {
 			write_bit(output, 1);
 			write_bit(output, tree->type); //writing bit denoting type of leaf (0 - leaf, 1 - stop)
-			if (tree->freq != 0) write_sym(output, tree->sym); //leaf contains symbol
+			if (tree->freq != 0) write_byte(output, tree->sym); //leaf contains symbol
 		}
 		else {
 			write_bit(output, 0);
@@ -312,24 +206,212 @@ void encode_text(FILE *input, bit_code *table, bit_stream *output) {
 		//write_bits(output, table[sym].bit_arr, table[sym].leng);
 		bit_code code = table[sym];
 		for (int i = 0; i < code.leng; i++) {
-			write_bit(output, GET_BIT(code.code, i));
+			printf("%d", GET_BIT(code.code, i));
+			//write_bit(output, GET_BIT(code.code, i));
 		}
 	}
 	//write safeword
 	bit_code code = table[256];
 	for (int i = 0; i < code.leng; i++) {
-		write_bit(output, GET_BIT(code.code, i));
+		//write_bit(output, GET_BIT(code.code, i));
 	}
 }
 
+void encode_text2(FILE *input, bit_code *table, FILE *output) {
+	char sym;
+	bit_code code;
+	int byte_pos = 0;
+	int code_pos = 0;
+
+	unsigned char mask = 0;
+	unsigned char bits = 0;
+	unsigned char out = 0;
+	int i = 0;
+	while (sym != EOF) {
+		i++;
+		if (code_pos <= 0) {
+			sym = getc(input);
+			if (sym == EOF) break;
+			code = table[sym];
+			code_pos = code.leng;
+		}
+		if (byte_pos >= 8) {
+			print_bin_bits(out, 8);
+			out = 0;
+			// putc(out, output);
+			byte_pos = 0;
+		}
+		
+		// printf("\n\nbyte_pos: %d\ncode_pos: %d\n", byte_pos, code_pos);
+
+		int min = code_pos < (8 - byte_pos) ? code_pos : (8 - byte_pos);
+		// printf("min: %d\n", min);
+		mask = (1 << min) - 1;
+		// printf("mask\n");
+		// print_bin_bits(mask, 8);
+		// printf("code\n");
+		// print_bin_bits(code.code, sizeof(long int) * 8);
+
+		bits = code.code & mask;
+		// printf("bits\n");
+		// print_bin_bits(bits, 8);
+		out = out | (bits << byte_pos);
+		// printf("out\n");
+		// print_bin_bits(out, 8);
+
+		code.code = code.code >> min;
+
+		byte_pos += min;
+		code_pos -= min;
+	}
+	code = table[256];
+	code_pos = code.leng;
+	while (code_pos > 0) {
+		if (byte_pos >= 8) {
+			print_bin_bits(out, 8);
+			out = 0;
+			byte_pos = 0;
+		}
+		int min = code_pos < (8 - byte_pos) ? code_pos : (8 - byte_pos);
+		// printf("min: %d\n", min);
+		mask = (1 << min) - 1;
+		// printf("mask\n");
+		// print_bin_bits(mask, 8);
+		// printf("code\n");
+		// print_bin_bits(code.code, sizeof(long int) * 8);
+
+		bits = code.code & mask;
+		// printf("bits\n");
+		// print_bin_bits(bits, 8);
+		out = out | (bits << byte_pos);
+		// printf("out\n");
+		// print_bin_bits(out, 8);
+
+		code.code = code.code >> min;
+
+		byte_pos += min;
+		code_pos -= min;
+	}
+	print_bin_bits(out, 8);
+}
 
 
-int encode(const char *input_path, const char *output_path) {
+/*#define READSYM
+#define WRITEBIT
+#define END
+//finite state machine style
+void encode_text_bit_stream(FILE *input, bit_code *table, bit_stream *output) {
+	int read = 0;
+	int cur_pos = 0;
+	bit_code code;
+	unsigned char sym;
+	while (state != END) {
+		switch (state) {
+			case READSYM:
+				read = fread(&sym, sizeof(char), 1, input);
+				if (read) {
+					code = table[sym];
+					state = WRTITEBIT;
+				}
+				else {
+					state = END;
+				}
+				break;
+			case WRITEBIT:
+				if (cur_pos < code.leng) {
+					write_bit(output, GET_BIT(code.code, cur_pos));
+					cur_pos++;
+					state = WRITEBIT;
+				}
+				else {
+					cur_pos = 0;
+					state = READSYM;
+				}
+				break;
+			case END:
+				break;
+		}
+	}
+}
+
+#ifndef READSYM
+#define READSYM
+#endif
+#ifndef ADDBIT
+#define ADDBIT
+#endif
+#ifndef WRITESYM
+#define WRITESYM
+#endif
+#ifndef END
+#define END
+#endif
+
+void encode_text_pure(FILE *input, bit_code *table, FILE *output) {
+	int cur_code_pos = 0;
+	int cur_byte_pos = 0;
+	unsigned char sym;
+	unsigned char out = 0;
+	int read = 0;
+	bit_code code;
+	state = READSYM;
+	while (state != END) {
+		switch (state) {
+			case READSYM:
+				read = fread(&sym, sizeof(char), 1, input);
+				if (read) {
+					code = table[sym];
+					cur_code_pos = 0;
+					state = ADDBIT;
+				}
+				else {
+					state = END;
+				}
+				break;
+			case ADDBIT:
+				if (cur_byte_pos < 8 && cur_code_pos < code.leng) {
+					SET_CON(out, cur_byte_pos, GET_BIT(code.code, cur_code_pos));
+					cur_code_pos++;
+					cur_byte_pos++;
+					state = ADDBIT;
+				}
+				else if (cur_byte_pos >= 8) {
+					state = WRITESYM;
+				}
+				else if (cur_code_pos >= code.leng) {
+					state = READSYM;
+				}
+				break;
+			case WRITESYM:
+				putc(out, output);
+				out = 0;
+				j = 0;
+				break;
+			case END:
+				break;
+		}
+	}
+}*/
+
+
+
+int db_encode(const char *input_path, const char *output_path) {
 	//creating code table (1-st file read)
   	FILE *input = fopen(input_path, "rb");
-	bit_stream *output = open_bs(output_path, "wb");
+  	if (!input) {
+  		return 1;
+  	}
+	bit_stream *file_tree = open_bs("./tree.hh", "wb");
+	if (!file_tree) {
+		return 1;
+	}
+	bit_stream *file_text = open_bs("./text.hh", "wb");
 
-	huff_tree *tree = create_huff_tree(input);
+	FILE *file_text2 = fopen("./text2.hh", "wb");
+
+
+	huff_tree *mem_block_ptr = NULL; //for further freeing tree;
+	huff_tree *tree = create_huff_tree(input, &mem_block_ptr);
 
 	//print_tree(tree);
 	//printf("\n");
@@ -338,10 +420,59 @@ int encode(const char *input_path, const char *output_path) {
 	bit_code *table = (bit_code*)calloc(257, sizeof(bit_code));
 	bit_code start_code; //just for passing to parameters
 	start_code.leng = 0; //making setup
+	start_code.code = 0; //making setup
+
+	create_code_table(tree, table, start_code);
+
+	print_table(table);
+
+	// write_huff_tree(file_tree, tree);
+	// flush_buff(file_tree, ALL);
+
+	free(mem_block_ptr); //freeing huffman tree (dynamic)
+
+	rewind(input);
+	// encode_text(input, table, file_text);
+	// rewind(input);
+	encode_text2(input, table, file_text2);
+
+	fclose(input);
+	close_bs(file_tree);
+	close_bs(file_text);
+
+	fclose(file_text2);
+
+	return 0;
+}
+
+int encode(const char *input_path, const char *output_path) {
+	//creating code table (1-st file read)
+  	FILE *input = fopen(input_path, "rb");
+  	if (!input) {
+  		return 1;
+  	}
+	bit_stream *output = open_bs(output_path, "wb");
+	if (!output) {
+		return 1;
+	}
+
+	huff_tree *mem_block_ptr = NULL; //for further freeing tree;
+	huff_tree *tree = create_huff_tree(input, &mem_block_ptr);
+
+	//print_tree(tree);
+	//printf("\n");
+
+	//to contain table (including stop sequence)
+	bit_code *table = (bit_code*)calloc(257, sizeof(bit_code));
+	bit_code start_code; //just for passing to parameters
+	start_code.leng = 0; //making setup
+	start_code.code = 0; //making setup
 
 	create_code_table(tree, table, start_code);
 
 	write_huff_tree(output, tree);
+
+	free(mem_block_ptr); //freeing huffman tree (dynamic)
 
 	rewind(input);
 	encode_text(input, table, output);
@@ -371,7 +502,7 @@ huff_tree *read_tree(bit_stream *stream) {
 
 		if (bit == 0) { //sym
 			unsigned char sym;
-			read_sym(stream, &sym);
+			read_byte(stream, &sym);
 			return create_node(sym, LEAF, 1);
 		}
 		else { //stop sequence
@@ -449,9 +580,9 @@ int decode_text2(bit_stream *input, FILE *output, stc_tree *tree) {
 	int index = 0;
 	int leaf_type = INTERNAL;
 
+	int bit;
 	while (leaf_type != STOP) {
 		while (tree[index].children[0] > 0) {
-			int bit;
 			read_bit(input, &bit);
 			index = tree[index].children[bit];
 		}
@@ -463,6 +594,86 @@ int decode_text2(bit_stream *input, FILE *output, stc_tree *tree) {
 		}
 	}
 }
+
+/*void print_code(bit_code code) {
+	for (int i = 0; i < code.leng; i++) {
+		printf("%d", GET_BIT(code.code, i));
+	}
+	printf("\n");
+}
+
+void print_code_table(bit_code *table) {
+	for (int i = 0; i < 257; i++) {
+		print_code(table[i]);
+	}
+}
+
+int get_sym(int *sieve) {
+	for (int i = 0; i < 257; i++) {
+		if (sieve[i]) {
+			return i;
+		}
+	}
+}
+
+int decode_text3(bit_stream *input, bit_code *table, FILE *output) {
+	// print_code_table(table);
+	int sym = 0;
+	int sieve[257] = { 0 };
+	int bit_num = 0;
+	int bit;
+
+	int matches_amo;
+	while (sym != 256) {
+		matches_amo = 0;
+		// set_sieve(sieve, table);
+		for (int i = 0; i < 257; i++) {
+			if (table[i].leng > 0) {
+				sieve[i] = 1;
+				matches_amo++;
+			}
+		}
+		while (matches_amo > 1) {
+			// printf("matches: %d\n", get_matches_amo(sieve));
+			read_bit(input, &bit);
+			// printf("bit: %d\n", bit);
+			// one_pass(sieve, bit, table, bit_num);
+			matches_amo = 0;
+			for (int i = 0; i < 257; i++) {
+				if (GET_BIT(table[i].code, bit_num) != bit) {
+					sieve[i] = 0;
+				}
+				else if (sieve[i]) {
+					matches_amo++;
+				}
+			}
+			bit_num++;
+		}
+		sym = get_sym(sieve);
+		if (sym == 256) {
+			return;
+		}
+		putc((char)sym, output);
+		// printf("%c\n", (char)sym);
+		bit_num = 0;
+	}
+}*/
+
+/*void decode_text4(bit_stream *input, bit_code *table, FILE *output) {
+	long int masks[257] = { 0 };
+	for (int i = 0; i < 257; i++) {
+		mask[i] = ~((1 << table[i].leng) - 1);
+	}
+	char byte = 0;
+	while (read_byte(input, &byte)) {
+		for (int i = 0; i < 257; i++) {
+			if (byte & mask[i] == table[i].code) {
+				putc((char)i, output);
+				i << table[i].leng;
+			}
+		}
+	}
+}*/
 
 /*typedef struct tree16 {
 	int children[16];
@@ -565,15 +776,36 @@ int foo2(FILE *input, FILE *output, tree16 *tree) {
 
 int decode(const char *input_path, const char *output_path) {
 	FILE *output = fopen(output_path, "wb");
+	if (!output) {
+		return 1;
+	}
 	bit_stream *input = open_bs(input_path, "rb");
+	if (!input) {
+		return 1;
+	}
 
 	huff_tree *tree = read_tree(input);
+
+	/*//--------------testing new verison
+	//to contain table (including stop sequence)
+	bit_code *table = (bit_code*)calloc(257, sizeof(bit_code));
+	bit_code start_code; //just for passing to parameters
+	start_code.leng = 0; //making setup
+	start_code.code = 0; //making setup
+
+	create_code_table(tree, table, start_code);
+
+	decode_text3(input, table, output);
+	//--------------testing new verison*/
 
 	int tree_size = get_tree_size(tree);
 	stc_tree *stc = (stc_tree*)malloc(sizeof(stc_tree) * tree_size);
 	dyn_to_stc(tree, stc, 0, 0);
 
+	free_tree(tree);
+
 	decode_text2(input, output, stc);
+
 
 	close_bs(input);
 	fclose(output);
@@ -610,12 +842,13 @@ float get_entropy(FILE *file) {
 int main(int argc, char *argv[]) {
 	struct huff_opt opts;
 
+	//add help
+
 	opts.input_fpath = NULL;
 	opts.output_fpath = NULL;
-	opts.type = 1;
+	opts.type = ENC;
 	opts.time = 0;
 	opts.keep = 0;
-
 
 	const char *opt_string = "ktedi:o:";
 	int opt = 0;
@@ -623,10 +856,10 @@ int main(int argc, char *argv[]) {
 	while ( (opt = getopt(argc, argv, opt_string)) != -1) {
 		switch (opt) {
 			case 'e':
-				opts.type = 1;
+				opts.type = ENC;
 				break;
 			case 'd':
-				opts.type = 0;
+				opts.type = DEC;
 				break;
 			case 'i':
 				opts.input_fpath = optarg;
@@ -652,10 +885,11 @@ int main(int argc, char *argv[]) {
 	}
 	if (!opts.output_fpath) {
 		//encode
-		if (opts.type) {
+		if (opts.type == ENC) {
 			char *output = (char*)malloc(sizeof(char) * strlen(opts.input_fpath) + 3);
 			strcpy(output, opts.input_fpath);
 			strcat(output, ".hh");
+			// sprintf(output, "%s.hh", opts.input_fpath);
 			opts.output_fpath = output;
 		}
 		//decode
@@ -666,9 +900,9 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if (opts.type) {
+	if (opts.type == ENC) {
 		clock_t enc_beg = clock();
-		encode(opts.input_fpath, opts.output_fpath);
+		db_encode(opts.input_fpath, opts.output_fpath);
 		clock_t enc_end = clock();
 		if (opts.time) {
 			printf("encode time: %f\n", (float)(enc_end - enc_beg) / CLOCKS_PER_SEC);

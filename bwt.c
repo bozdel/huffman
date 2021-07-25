@@ -6,6 +6,8 @@
 
 #define BLOCK_SIZE 10000
 
+int is_sorted(const char *string, int *arr, int start, int end);
+
 int cmp_str(const char *string, int pos1, int pos2, int leng) {
 	for (int i = 0; i < leng && string[pos1] == string[pos2]; i++) {
 		pos1 = (pos1 + 1) % leng;
@@ -14,33 +16,14 @@ int cmp_str(const char *string, int pos1, int pos2, int leng) {
 	return string[pos1] < string[pos2];
 }
 
-void insertion_sort_gap(const char *string, int *ptrs, int leng, int cmp_leng, int gap) {
+void ins_sort(const char *string, int *ptrs, int start, int end, int cmp_leng) {
 	int j;
-	for (int i = 0; i < leng - gap; i++) {
-		int tmp = ptrs[i + gap];
-		for (j = i; j >= 0 && cmp_str(string, tmp, ptrs[j], cmp_leng); j -= gap) {
-			ptrs[j + gap] = ptrs[j];
+	for (int i = start; i < end - 1; i++) {
+		int tmp = ptrs[i + 1];
+		for (j = i; j >= start && cmp_str(string, tmp, ptrs[j], cmp_leng); j--) { //tmp < ptrs[j]
+			ptrs[j + 1] = ptrs[j];
 		}
-		ptrs[j + gap] = tmp;
-	}
-}
-
-void shell_sort(const char *string, int *ptrs, int leng, int cmp_leng) {
-	//sedgewick
-	int gap = 0;
-	int i = 0;
-	while (gap < leng) {
-		int m1 = 1 << i;
-		int m2 = 1 << (i / 2);
-		gap = 9 * m1 - 9 * m2 + 1;
-		i++;
-	}
-	i -= 2;
-	for ( ; i >= 0; i--) {
-		int m1 = 1 << i;
-		int m2 = 1 << (i / 2);
-		gap = 9 * m1 - 9 * m2 + 1;
-		insertion_sort_gap(string, ptrs, leng, cmp_leng, gap);
+		ptrs[j + 1] = tmp;
 	}
 }
 
@@ -75,7 +58,12 @@ void merge(const char *string, int *dst, int *arr1, int *arr2, int l1, int l2, i
 void merge_sort(const char *string, int *array, int start, int end, int cmp_leng) {
 	int leng = end - start;
 
-	if (leng < 2) {
+	if (leng < 5) {
+		ins_sort(string, array, start, end, cmp_leng);
+		if (!is_sorted(string, array, start, end)) {
+			printf("error\n");
+			sleep(1);
+		}
 		return;
 	}
 
@@ -96,16 +84,7 @@ void merge_sort(const char *string, int *array, int start, int end, int cmp_leng
 	free(tmp);
 }
 
-void sort(const char *string, int *ptrs, int leng, int cmp_leng) {
-	int j;
-	for (int i = 0; i < leng - 1; i++) {
-		int tmp = ptrs[i + 1];
-		for (j = i; j >= 0 && cmp_str(string, tmp, ptrs[j], cmp_leng); j--) { //tmp < ptrs[j]
-			ptrs[j + 1] = ptrs[j];
-		}
-		ptrs[j + 1] = tmp;
-	}
-}
+
 
 int is_eq(int *arr1, int *arr2, int leng) {
 	for (int i = 0; i < leng; i++) {
@@ -114,8 +93,8 @@ int is_eq(int *arr1, int *arr2, int leng) {
 	return 1;
 }
 
-int is_sorted(const char *string, int *arr, int leng) {
-	for (int i = 0; i < leng - 1; i++) {
+int is_sorted(const char *string, int *arr, int start, int end) {
+	for (int i = start; i < end - 1; i++) {
 		if (string[arr[i]] > string[arr[i + 1]]) return 0;
 	}
 	return 1;
@@ -139,12 +118,10 @@ int bwt(const char *in_string, int leng, char *out_string) {
 	shell_sort(in_string, ptrs2, leng, leng);*/
 	merge_sort(in_string, ptrs, 0, leng, leng);
 
-	/*printf("sorted ptrs  by sort      : %d\n", is_sorted(in_string, ptrs, leng));
-	printf("sorted ptrs2 by shell_sort: %d\n", is_sorted(in_string, ptrs2, leng));
-	printf("sorted ptrs3 by merge_sort: %d\n", is_sorted(in_string, ptrs3, leng));
+	// printf("sorted ptrs by merge_sort: %d\n", is_sorted(in_string, ptrs, 0, leng));
 
-	printf("is equal ptrs and ptrs2: %d\n", is_eq(ptrs, ptrs2, leng));
-	printf("is equal ptrs and ptrs3: %d\n", is_eq(ptrs, ptrs3, leng));*/
+	//printf("is equal ptrs and ptrs2: %d\n", is_eq(ptrs, ptrs2, leng));
+	//printf("is equal ptrs and ptrs3: %d\n", is_eq(ptrs, ptrs3, leng));
 
 	//getting last column in sorted "table" of permutations (array of pointers)
 	for (int i = 0; i < leng; i++) {
@@ -179,11 +156,9 @@ void inverse_bwt(const char *in_string, int leng, char *out_string, int pos) {
 	shell_sort(in_string, indexes2, leng, 0);*/
 	merge_sort(in_string, indexes, 0, leng, 0);
 
-	/*printf("sorted indexes  by sort      : %d\n", is_sorted(in_string, indexes, leng));
-	printf("sorted indexes2 by shell_sort: %d\n", is_sorted(in_string, indexes2, leng));
-	printf("sorted indexes3 by merge_sort: %d\n", is_sorted(in_string, indexes3, leng));
+	// printf("sorted indexes by merge_sort: %d\n", is_sorted(in_string, indexes, 0, leng));
 
-	printf("is equal indexes and indexes2: %d\n", is_eq(indexes, indexes2, leng));
+	/*printf("is equal indexes and indexes2: %d\n", is_eq(indexes, indexes2, leng));
 	printf("is equal indexes and indexes3: %d\n", is_eq(indexes, indexes3, leng));*/
 
 	int ind = indexes[pos];
@@ -237,6 +212,23 @@ int decode(char *in_path, char *out_path) {
 	
 	fclose(ifile);
 	fclose(ofile);
+	return 0;
+}
+
+int main1() {
+	char *str = "bcadfgdhrh";
+	int leng = strlen(str);
+	int *arr = (int*)malloc(sizeof(char) * leng);
+	for (int i = 0; i < leng; i++) {
+		arr[i] = i;
+	}
+
+	merge_sort(str, arr, 0, leng, leng);
+
+	if (!is_sorted(str, arr, 0, leng)) {
+		printf("error\n");
+	}
+
 	return 0;
 }
 

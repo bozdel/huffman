@@ -10,10 +10,6 @@ void write_huff_tree(bit_stream *output, huff_tree *tree);
 
 void encode_text(FILE *input, bit_code *table, bit_stream *output);
 
-void encode_text2(FILE *input, bit_code *table, FILE *output);
-
-int db_encode(const char *input_path, const char *output_path);
-
 int encode(const char *input_path, const char *output_path);
 
 #endif

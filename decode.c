@@ -30,41 +30,7 @@ huff_tree *read_tree(bit_stream *stream) {
 	}
 }
 
-// returns 1 if symbol was readed, otherwise 0 (stop sequence)
-int read_encoded_sym(bit_stream *input, huff_tree *tree, unsigned char *sym) {
-	int bit;
-	while (tree->type == INTERNAL) {
-		read_bit(input, &bit);
-		if (bit) {
-			tree = tree->right;
-		}
-		else {
-			tree = tree->left;
-		}
-	}
-	*sym = tree->sym;
-	return tree->type == LEAF; //or !(tree->type)
-}
-
-int decode_text(bit_stream *input, FILE *output, huff_tree *tree) {
-	unsigned char sym;
-	int read_res;
-
-	while ( (read_res = read_encoded_sym(input, tree, &sym)) ) {
-		fwrite(&sym, sizeof(char), 1, output);
-	}
-
-	if (read_res == 0) {
-		return 1; //all is ok
-	}
-	else {
-		return -1; //something wrong with reading
-	}
-}
-
-
-
-int decode_text2(bit_stream *input, FILE *output, stc_tree *tree) {
+int decode_text(bit_stream *input, FILE *output, stc_tree *tree) {
 	unsigned char sym;
 	int index = 0;
 	int leaf_type = INTERNAL;
@@ -153,15 +119,13 @@ int decode(const char *input_path, const char *output_path) {
 
 	huff_tree *tree = read_tree(input);
 
-
 	int tree_size = get_tree_size(tree);
 	stc_tree *stc = (stc_tree*)malloc(sizeof(stc_tree) * tree_size);
 	dyn_to_stc(tree, stc, 0, 0);
 
 	free_tree(tree);
 
-	decode_text2(input, output, stc);
-
+	decode_text(input, output, stc);
 
 	close_bs(input);
 	fclose(output);

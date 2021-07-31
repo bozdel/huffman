@@ -199,9 +199,6 @@ int encode(const char *input_path, const char *output_path) {
 	huff_tree *mem_block_ptr = NULL; //for further freeing tree;
 	huff_tree *tree = create_huff_tree(input, &mem_block_ptr);
 
-	//print_tree(tree);
-	//printf("\n");
-
 	//to contain table (including stop sequence)
 	bit_code *table = (bit_code*)calloc(257, sizeof(bit_code));
 	bit_code start_code; //just for passing to parameters

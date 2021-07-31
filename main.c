@@ -13,10 +13,6 @@
 #define ENC 1
 #define DEC 0
 
-#define GET_BIT(a,n) ( ((a) >> (n)) & 1		)
-#define SET_BIT(a,n) ( (a) |= (1 << (n))	)
-#define CLR_BIT(a,n) ( (a) &= (~(1 << (n))) )
-
 
 
 struct huff_opt {
@@ -209,23 +205,14 @@ void encode_text(FILE *input, bit_code *table, bit_stream *output) {
 		//write_bits(output, table[sym].bit_arr, table[sym].leng);
 		bit_code code = table[sym];
 		for (int i = 0; i < code.leng; i++) {
-			/*printf("%d", GET_BIT(code.code, i));
-			if ((++counter) % 8 == 0) {
-				printf(" ");
-			}*/
 			write_bit(output, GET_BIT(code.code, i));
 		}
 	}
 	//write safeword
 	bit_code code = table[256];
 	for (int i = 0; i < code.leng; i++) {
-		/*printf("%d", GET_BIT(code.code, i));
-			if ((++counter) % 8 == 0) {
-				printf(" ");
-		}*/
 		write_bit(output, GET_BIT(code.code, i));
 	}
-	// printf(" ");
 }
 
 void encode_text2(FILE *input, bit_code *table, FILE *output) {
@@ -247,64 +234,45 @@ void encode_text2(FILE *input, bit_code *table, FILE *output) {
 			code_pos = code.leng;
 		}
 		if (byte_pos >= 8) {
-			// print_bin_bits(out, 8);
 			putc(out, output);
 			out = 0;
 			byte_pos = 0;
 		}
 		
-		// printf("\n\nbyte_pos: %d\ncode_pos: %d\n", byte_pos, code_pos);
 
 		int min = code_pos < (8 - byte_pos) ? code_pos : (8 - byte_pos);
-		// printf("min: %d\n", min);
+
 		mask = (1 << min) - 1;
-		// printf("mask\n");
-		// print_bin_bits(mask, 8);
-		// printf("code\n");
-		// print_bin_bits(code.code, sizeof(long int) * 8);
 
 		bits = code.code & mask;
-		// printf("bits\n");
-		// print_bin_bits(bits, 8);
-		out = out | (bits << byte_pos);
-		// printf("out\n");
-		// print_bin_bits(out, 8);
 
+		out = out | (bits << byte_pos);
 		code.code = code.code >> min;
 
 		byte_pos += min;
 		code_pos -= min;
 	}
+	//writing safeword
 	code = table[256];
 	code_pos = code.leng;
 	while (code_pos > 0) {
 		if (byte_pos >= 8) {
-			// print_bin_bits(out, 8);
 			putc(out, output);
 			out = 0;
 			byte_pos = 0;
 		}
 		int min = code_pos < (8 - byte_pos) ? code_pos : (8 - byte_pos);
-		// printf("min: %d\n", min);
+
 		mask = (1 << min) - 1;
-		// printf("mask\n");
-		// print_bin_bits(mask, 8);
-		// printf("code\n");
-		// print_bin_bits(code.code, sizeof(long int) * 8);
 
 		bits = code.code & mask;
-		// printf("bits\n");
-		// print_bin_bits(bits, 8);
 		out = out | (bits << byte_pos);
-		// printf("out\n");
-		// print_bin_bits(out, 8);
 
 		code.code = code.code >> min;
 
 		byte_pos += min;
 		code_pos -= min;
 	}
-	// print_bin_bits(out, 8);
 	putc(out, output);
 }
 
@@ -515,9 +483,6 @@ int decode_text2(bit_stream *input, FILE *output, stc_tree *tree) {
 	}
 }
 
-
-
-
 int decode(const char *input_path, const char *output_path) {
 	FILE *output = fopen(output_path, "wb");
 	if (!output) {
@@ -527,6 +492,7 @@ int decode(const char *input_path, const char *output_path) {
 	if (!input) {
 		return 1;
 	}
+
 
 	huff_tree *tree = read_tree(input);
 

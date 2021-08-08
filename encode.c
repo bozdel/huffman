@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// #include "debug.h"
+
 huff_tree *create_huff_tree(FILE *input, huff_tree **mem_block_ptr) {
 	huff_tree *freqs = (huff_tree*)calloc(256, sizeof(huff_tree));
 	*mem_block_ptr = freqs; //for further freeing tree
@@ -149,6 +151,64 @@ void encode_text(FILE *input, bit_code *table, FILE *output, unsigned char buff,
 	putc(out, output);
 }
 
+union buffer {
+	__uint128_t pair;
+	long int code[2];
+};
+
+void encode_text2(FILE *input, bit_code *table, FILE *output, unsigned char buff, int pos) {
+	unsigned char sym;
+
+	int c0l = 0, c1l = 0;		//length of the first code and the second code
+	union buffer iobuff;		//buffer for read and write
+
+	//initiating iobuff by buff and pos
+	iobuff.code[0] = buff;
+	c0l = pos;
+
+	//auxiliary variables
+	int free_c0l;				//complement length of the first code
+	int eof = 0;
+
+	while (!eof) {
+		sym = getc(input);
+		if ((eof = feof(input))) break;
+
+		iobuff.code[1] = table[sym].code;
+		c1l = table[sym].leng;
+
+		free_c0l = sizeof(long int) * 8 - c0l;
+
+		iobuff.code[0] <<= free_c0l;			//shifting the first code to connection with the second
+		iobuff.pair >>= free_c0l;				//shifting down concatenated code to begining
+
+		if (c1l > free_c0l) {					//first half of iobuff is full (it can be written to file)
+			fwrite(&iobuff.code[0], sizeof(long int), 1, output);
+			iobuff.pair >>= sizeof(long int) * 8;
+			c0l -= sizeof(long int) * 8;
+		}
+		c0l += c1l;
+	}
+
+
+	//writing safeword
+	iobuff.code[1] = table[256].code;
+	c1l = table[256].leng;
+
+	free_c0l = sizeof(long int) * 8 - c0l;
+
+	iobuff.code[0] <<= free_c0l;
+	iobuff.pair >>= free_c0l;
+
+	if (c1l > free_c0l) {
+		fwrite(&iobuff.code[0], sizeof(long int), 1, output);
+		iobuff.pair >>= sizeof(long int) * 8;
+		c0l -= sizeof(long int) * 8;
+	}
+	c0l += c1l;
+
+	fwrite(&iobuff.code[0], sizeof(long int), 1, output);
+}
 
 int encode(const char *input_path, const char *output_path) {
 	//creating code table (1-st file read)
@@ -181,7 +241,7 @@ int encode(const char *input_path, const char *output_path) {
 
 	rewind(input);
 
-	encode_text(input, table, output, buff, pos);
+	encode_text2(input, table, output, buff, pos);
 
 	fclose(input);
 	fclose(output);

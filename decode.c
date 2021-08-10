@@ -3,25 +3,46 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-huff_tree *read_tree(bit_stream *stream) {
+#include "debug.h"
+
+huff_tree *read_tree(FILE *input, unsigned char *buff, int *pos) {
 	huff_tree *tree = NULL;
 	int bit;
-	int readed = read_bit(stream, &bit);
-	if (!readed) return NULL; //something wrong
+
+	if (*pos >= 8) {
+		*pos = 0;
+		*buff = getc(input);
+		if (feof(input)) return NULL; //something wrong
+	}
+	bit = GET_BIT(*buff, (*pos)++);
 
 	if (bit == 0) { //internal
 		tree = create_node(0, INTERNAL, 1);
-		tree->left = read_tree(stream);
-		tree->right = read_tree(stream);
+		tree->left = read_tree(input, buff, pos);
+		tree->right = read_tree(input, buff, pos);
 		return tree;
 	}
 	else {
-		readed = read_bit(stream, &bit);
-		if (!readed) return NULL; //something wrong
+
+		if (*pos >= 8) {
+			*pos = 0;
+			*buff = getc(input);
+			if (feof(input)) return NULL; //something wrong
+		}
+		bit = GET_BIT(*buff, (*pos)++);
 
 		if (bit == 0) { //sym
 			unsigned char sym;
-			read_byte(stream, &sym);
+
+			for (int i = 0; i < 8; i++) {
+				if (*pos >= 8) {
+					*pos = 0;
+					*buff = getc(input);
+					if (feof(input)) return NULL; //something wrong
+				}
+				SET_CON(sym, i, GET_BIT(*buff, (*pos)++));
+			}
+			
 			return create_node(sym, LEAF, 1);
 		}
 		else { //stop sequence
@@ -30,50 +51,29 @@ huff_tree *read_tree(bit_stream *stream) {
 	}
 }
 
-int decode_text(bit_stream *input, FILE *output, stc_tree *tree) {
+int decode_text(FILE *input, FILE *output, stc_tree *tree) {
 	unsigned char sym;
-	int index = 0;
-	int leaf_type = INTERNAL;
-
-	int bit;
-	while (leaf_type != STOP) {
-		while (tree[index].children[0] > 0) {
-			read_bit(input, &bit);
-			index = tree[index].children[bit];
-		}
-		leaf_type = -(tree[index].children[0]) - 1;
-		sym = -(tree[index].children[1]);
-		index = 0;
-		if (leaf_type == LEAF) {
-			putc(sym, output);
-		}
-	}
-}
-
-/*int foo(FILE *input, FILE *output, stc_tree *tree) {
-	char sym;
 	char outsym;
 	int index = 0;
 	char leaf_type = INTERNAL; //or LEAF
 
 	while (leaf_type != STOP) {
-		sym = (char)getc(input);
+		sym = getc(input);
 
-		for (int n = 7; n >= 0; n--) {
+		for (int n = 0; n < 8; n++) {
 
 			if (tree[index].children[0] < 0) {
-				left_type = -(tree[index].children[0]) - 1;
-				outsym = -(tree[index].children[1])
-				putc(output, outsym);
+				leaf_type = -(tree[index].children[0]) - 1;
+				outsym = -(tree[index].children[1]);
+				if (leaf_type == STOP) break;
+				putc(outsym, output);
 				index = 0;
 			}
-			else {
-				index = tree[index].children[GET_BIT(sym, n)];
-			}
+			index = tree[index].children[GET_BIT(sym, n)];
 
 		}
 	}
-}*/
+}
 
 /*union bar {
 	short int i;
@@ -112,12 +112,15 @@ int decode(const char *input_path, const char *output_path) {
 	if (!output) {
 		return 1;
 	}
-	bit_stream *input = open_bs(input_path, "rb");
+	FILE *input = fopen(input_path, "rb");
 	if (!input) {
-		return 1;
+		return 0;
 	}
 
-	huff_tree *tree = read_tree(input);
+
+	unsigned char buff = 0;
+	int pos = 8;
+	huff_tree *tree = read_tree(input, &buff, &pos);
 
 	int tree_size = get_tree_size(tree);
 	stc_tree *stc = (stc_tree*)malloc(sizeof(stc_tree) * tree_size);
@@ -127,7 +130,7 @@ int decode(const char *input_path, const char *output_path) {
 
 	decode_text(input, output, stc);
 
-	close_bs(input);
+	fclose(input);
 	fclose(output);
 
 	return 0;

@@ -156,15 +156,11 @@ union buffer {
 	long int code[2];
 };
 
-void encode_text2(FILE *input, bit_code *table, FILE *output, unsigned char buff, int pos) {
+void encode_text2(FILE *input, bit_code *table, FILE *output) {
 	unsigned char sym;
 
 	int c0l = 0, c1l = 0;		//length of the first code and the second code
 	union buffer iobuff;		//buffer for read and write
-
-	//initiating iobuff by buff and pos
-	iobuff.code[0] = buff;
-	c0l = pos;
 
 	//auxiliary variables
 	int free_c0l;				//complement length of the first code
@@ -236,15 +232,17 @@ int encode(const char *input_path, const char *output_path) {
 	unsigned char buff = 0;
 	int pos = 0;
 	write_huff_tree(output, tree, &buff, &pos);
+	putc(buff, output); //finish writing tree
 
 	free(mem_block_ptr); //freeing huffman tree (dynamic)
 
 	rewind(input);
 
-	encode_text2(input, table, output, buff, pos);
+	encode_text2(input, table, output);
 
 	fclose(input);
 	fclose(output);
 
 	return 0;
 }
+

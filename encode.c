@@ -87,76 +87,12 @@ void write_huff_tree(FILE *output, huff_tree *tree, unsigned char *buff, int *po
 	}
 }
 
-void encode_text(FILE *input, bit_code *table, FILE *output, unsigned char buff, int pos) {
-	unsigned char sym;
-
-	//two buffers for streams (input stream - code / output stream - out)
-	bit_code code;
-	int code_pos = 0;
-
-	unsigned char out = buff; //value for holding output bits (initialized by buff)
-	int byte_pos = pos; //current position in output bits (initialized by position in buffer)
-
-	//auxiliary variables
-	unsigned char mask = 0;
-	unsigned char bits = 0;
-
-	while (!feof(input)) {
-		if (code_pos <= 0) {
-			sym = getc(input);
-			if (feof(input)) break;
-			code = table[sym];
-			code_pos = code.leng;
-		}
-		if (byte_pos >= 8) {
-			putc(out, output);
-			out = 0;
-			byte_pos = 0;
-		}
-		
-
-		int min = code_pos < (8 - byte_pos) ? code_pos : (8 - byte_pos);
-
-		mask = (1 << min) - 1;
-
-		bits = code.code & mask;
-
-		out = out | (bits << byte_pos);
-		code.code = code.code >> min;
-
-		byte_pos += min;
-		code_pos -= min;
-	}
-	//writing safeword
-	code = table[256];
-	code_pos = code.leng;
-	while (code_pos > 0) {
-		if (byte_pos >= 8) {
-			putc(out, output);
-			out = 0;
-			byte_pos = 0;
-		}
-		int min = code_pos < (8 - byte_pos) ? code_pos : (8 - byte_pos);
-
-		mask = (1 << min) - 1;
-
-		bits = code.code & mask;
-		out = out | (bits << byte_pos);
-
-		code.code = code.code >> min;
-
-		byte_pos += min;
-		code_pos -= min;
-	}
-	putc(out, output);
-}
-
 union buffer {
 	__uint128_t pair;
 	long int code[2];
 };
 
-void encode_text2(FILE *input, bit_code *table, FILE *output) {
+void encode_text(FILE *input, bit_code *table, FILE *output) {
 	unsigned char sym;
 
 	int c0l = 0, c1l = 0;		//length of the first code and the second code
@@ -238,7 +174,7 @@ int encode(const char *input_path, const char *output_path) {
 
 	rewind(input);
 
-	encode_text2(input, table, output);
+	encode_text(input, table, output);
 
 	fclose(input);
 	fclose(output);

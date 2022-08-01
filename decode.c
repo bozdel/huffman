@@ -75,6 +75,110 @@ int decode_text(FILE *input, FILE *output, stc_tree *tree) {
 	}
 }
 
+union buffer {
+	__uint16_t pair;
+	char sym[2];
+};
+
+int decode_text_new(FILE *input, FILE *output, tree4 *tree) {
+	unsigned char sym;
+	char outsym;
+	char leaf_type = INTERNAL; //or LEAF
+	union buffer buff;
+	sym = getc(input);
+	buff.sym[0] = sym;
+
+	int ind = 0;
+
+	int bits_used = 8;
+	while (leaf_type != STOP) {
+		sym = getc(input);
+
+		buff.pair <<= (bits_used - 8);
+		buff.sym[1] = sym;
+		buff.pair >>= (bits_used - 8);
+		bits_used -= 8;
+
+		
+		while (bits_used < 8) {
+			int chld_ind = GET_BIT(buff.sym[0], 0) * 2 + GET_BIT(buff.sym[0], 1);
+			if (tree[ind].children[chld_ind].mask.type != INTERNAL) {
+				leaf_type = tree[ind].children[chld_ind].mask.type;
+				if (leaf_type == LEAF) {
+					outsym = tree[ind].children[chld_ind].sym;
+
+					buff.pair >>= (2 - tree[ind].children[chld_ind].mask.rest);
+					bits_used += (2 - tree[ind].children[chld_ind].mask.rest);
+
+					ind = 0;
+					putc(outsym, output);
+				}
+				else {
+					break;
+				}
+			}
+			else {
+				ind = tree[ind].children[chld_ind].index;
+
+				buff.pair >>= 2;
+				bits_used += 2;
+			}
+
+		}
+		
+	}
+}
+
+int decode_text16(FILE *input, FILE *output, tree16 *tree) {
+	unsigned char sym;
+	char outsym;
+	char leaf_type = INTERNAL; //or LEAF
+	union buffer buff;
+	sym = getc(input);
+	buff.sym[0] = sym;
+
+	int ind = 0;
+
+	int bits_used = 8;
+	while (leaf_type != STOP) {
+		sym = getc(input);
+
+		buff.pair <<= (bits_used - 8);
+		buff.sym[1] = sym;
+		buff.pair >>= (bits_used - 8);
+		bits_used -= 8;
+
+		
+		while (bits_used < 8) {
+			int chld_ind = GET_BIT(buff.sym[0], 0) * 8 + GET_BIT(buff.sym[0], 1) * 4 + GET_BIT(buff.sym[0], 2) * 2 + GET_BIT(buff.sym[0], 3);
+			if (tree[ind].children[chld_ind].mask.type != INTERNAL) {
+				leaf_type = tree[ind].children[chld_ind].mask.type;
+				if (leaf_type == LEAF) {
+					outsym = tree[ind].children[chld_ind].sym;
+
+					buff.pair >>= (4 - tree[ind].children[chld_ind].mask.rest);
+					bits_used += (4 - tree[ind].children[chld_ind].mask.rest);
+
+					ind = 0;
+					// printf("%c\n", outsym);
+					putc(outsym, output);
+				}
+				else {
+					break;
+				}
+			}
+			else {
+				ind = tree[ind].children[chld_ind].index;
+
+				buff.pair >>= 4;
+				bits_used += 4;
+			}
+
+		}
+		
+	}
+}
+
 /*union bar {
 	short int i;
 	char alo[2];
@@ -125,6 +229,62 @@ int decode(const char *input_path, const char *output_path) {
 	int tree_size = get_tree_size(tree);
 	stc_tree *stc = (stc_tree*)malloc(sizeof(stc_tree) * tree_size);
 	dyn_to_stc(tree, stc, 0, 0);
+
+	/*//-------test------
+
+	// print_tree(tree, 0);
+
+	int blk_size = get_size_block(tree, 0);
+	// printf("tree size: %d\n", blk_size);
+
+	tree4 *tr4 = (tree4*)calloc(blk_size, sizeof(tree4));
+	for (int i = 0; i < blk_size; i++) {
+		for (int j = 0; j < 4; j++) {
+			tr4[i].children[j].mask.type = INTERNAL;
+		}
+	}
+	// print_tree4(tr4, blk_size);
+
+	tree_to_tree4_v2(tree, tr4, 0, 0, 0, 0);
+
+	// printf("\n");
+	// print_tree4(tr4, blk_size);
+
+	decode_text_new(input, output, tr4);
+
+	fclose(input);
+	fclose(output);
+
+	return 0;
+	//-------test------*/
+
+	//-------test------
+
+	// print_tree(tree, 0);
+
+	int blk_size = get_size_block16(tree, 0);
+	// printf("tree size: %d\n", blk_size);
+
+	tree16 *tr16 = (tree16*)calloc(blk_size, sizeof(tree16));
+	for (int i = 0; i < blk_size; i++) {
+		for (int j = 0; j < 16; j++) {
+			tr16[i].children[j].mask.type = INTERNAL;
+		}
+	}
+	// print_tree4(tr4, blk_size);
+
+	tree_to_tree16(tree, tr16, 0, 0, 0, 0);
+
+	// printf("\n");
+	// print_tree16(tr16, blk_size);
+
+	decode_text16(input, output, tr16);
+
+	fclose(input);
+	fclose(output);
+
+	return 0;
+	//-------test------
 
 	free_tree(tree);
 

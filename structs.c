@@ -45,6 +45,131 @@ void tree_to_tree16(huff_tree *root, tree16 *root16, int index, int free_space, 
 
 //------------------------tree-16------------------------------------------
 
+//------------------------tree-4-------------------------------------------
+/*typedef int node_t;
+
+#define INT_BITS sizeof(int) * 8
+#define CHAR_BITS sizeof(char) * 8
+
+#define IS_LEAF(node) ( (1 << 31) & (node) )
+#define SET_LEAF(node) ( (node) |= (1 << (INT_BITS - 1)) )
+
+#define GET_SYM(node) ( (node) & ((1 << CHAR_BITS) - 1) )
+#define SET_SYM(node, sym) ( (node) |= (sym) )
+
+#define GET_IND(node) ( (node) & ((1 << INT_BITS) - 1) )
+#define SET_IND(node, ind) ( (node) |= (ind) )
+
+#define CLR_NODE(node) ( (node) &= 0 )
+
+typedef struct tree4 {
+	node_t children[4];
+} tree4;*/
+
+int get_size_block(huff_tree *root, int depth) {
+	if (root) {
+		int left_size = get_size_block(root->left, (depth + 1) % 2);
+		int right_size = get_size_block(root->right, (depth + 1) % 2);
+		// depth == 0 means entering in new block, but if it's leaf or stop then it can be stored in current block
+		return left_size + right_size + (depth == 0 && root->type == INTERNAL);
+	}
+	return 0;
+}
+
+int tree_to_tree4_v2(huff_tree *root, tree4 *root4, int index, int free_space, int child_num, int depth) {
+	if (root->left) {
+		if ((depth + 1) % 2 == 0 && root->left->type == INTERNAL) { // next step is a new block
+			root4[index].children[(child_num * 2) % 4].index = ++free_space;
+			free_space = tree_to_tree4_v2(root->left, root4, root4[index].children[(child_num * 2) % 4].index, free_space, 0, (depth + 1) % 2);
+		}
+		else {
+			free_space = tree_to_tree4_v2(root->left, root4, index, free_space, (child_num * 2) % 4, (depth + 1) % 2);
+		}
+	}
+	if (root->right) {
+		if ((depth + 1) % 2 == 0 && root->right->type == INTERNAL) { // next step is a new block
+			root4[index].children[(child_num * 2 + 1) % 4].index = ++free_space;
+			free_space = tree_to_tree4_v2(root->right, root4, root4[index].children[(child_num * 2 + 1) % 4].index, free_space, 0, (depth + 1) % 2);
+		}
+		else {
+			free_space = tree_to_tree4_v2(root->right, root4, index, free_space, (child_num * 2 + 1) % 4, (depth + 1) % 2);
+		}
+	}
+	if (root->left == NULL && root->right == NULL) {
+		//setting all leafs of "subtree" of current node
+		child_num <<= depth; // depth - is a hack for finding leaf-child index (there should be "height - depth", but "depth" works there)
+		for (int i = 0; i < (1 << depth); i++) {
+			if (root->type == LEAF) {
+				// SET_LEAF(root4[index].children[child_num + i]);
+				// SET_SYM(root4[index].children[child_num + i], root->sym);
+				root4[index].children[child_num + i].mask.type = LEAF;
+				root4[index].children[child_num + i].mask.rest = depth;
+				root4[index].children[child_num + i].sym = root->sym;
+			}
+			else {
+				// SET_STOP(root4[index].children[child_num + i]);
+				root4[index].children[child_num + i].mask.type = STOP;
+			}
+		}
+	}
+	return free_space;
+}
+
+//------------------------tree-4-------------------------------------------
+
+//------------------------tree-16-------------------------------------------
+
+int get_size_block16(huff_tree *root, int depth) {
+	if (root) {
+		int left_size = get_size_block16(root->left, (depth + 1) % 4);
+		int right_size = get_size_block16(root->right, (depth + 1) % 4);
+		// depth == 0 means entering in new block, but if it's leaf or stop then it can be stored in current block
+		return left_size + right_size + (depth == 0 && root->type == INTERNAL);
+	}
+	return 0;
+}
+
+int tree_to_tree16(huff_tree *root, tree16 *root16, int index, int free_space, int child_num, int depth) {
+	if (root->left) {
+		if ((depth + 1) % 4 == 0 && root->left->type == INTERNAL) { // next step is a new block
+			root16[index].children[(child_num * 2) % 16].index = ++free_space;
+			free_space = tree_to_tree16(root->left, root16, root16[index].children[(child_num * 2) % 16].index, free_space, 0, (depth + 1) % 4);
+		}
+		else {
+			free_space = tree_to_tree16(root->left, root16, index, free_space, (child_num * 2) % 16, (depth + 1) % 4);
+		}
+	}
+	if (root->right) {
+		if ((depth + 1) % 4 == 0 && root->right->type == INTERNAL) { // next step is a new block
+			root16[index].children[(child_num * 2 + 1) % 16].index = ++free_space;
+			free_space = tree_to_tree16(root->right, root16, root16[index].children[(child_num * 2 + 1) % 16].index, free_space, 0, (depth + 1) % 4);
+		}
+		else {
+			free_space = tree_to_tree16(root->right, root16, index, free_space, (child_num * 2 + 1) % 16, (depth + 1) % 4);
+		}
+	}
+	if (root->left == NULL && root->right == NULL) {
+		//setting all leafs of "subtree" of current node
+		int shift = depth == 0 ? depth : (4 - depth);
+		child_num <<= shift; // depth - is a hack for finding leaf-child index (there should be "height - depth", but "depth" works there)
+		for (int i = 0; i < (1 << shift); i++) {
+			if (root->type == LEAF) {
+				// SET_LEAF(root16[index].children[child_num + i]);
+				// SET_SYM(root16[index].children[child_num + i], root->sym);
+				root16[index].children[child_num + i].mask.type = LEAF;
+				root16[index].children[child_num + i].mask.rest = shift;
+				root16[index].children[child_num + i].sym = root->sym;
+			}
+			else {
+				// SET_STOP(root16[index].children[child_num + i]);
+				root16[index].children[child_num + i].mask.type = STOP;
+			}
+		}
+	}
+	return free_space;
+}
+
+//------------------------tree-16-------------------------------------------
 
 //--------------------static tree------------------------------------------
 

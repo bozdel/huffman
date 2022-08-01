@@ -5,6 +5,7 @@
 #define STOP 1
 #define INTERNAL 2
 
+
 typedef struct huff_tree {
 	unsigned char sym;
 	char type;
@@ -22,6 +23,60 @@ typedef struct bit_code {
 typedef struct stc_tree {
 	int children[2];
 } stc_tree;
+
+//-------test-------------
+// typedef int node_t;
+
+#define INT_BITS sizeof(int) * 8
+#define CHAR_BITS sizeof(char) * 8
+
+#define SET_STOP(node) ( (node) |= (1 << INT_BITS - 2) )
+#define IS_STOP(node) ( (1 << 30) & (node) )
+
+#define SET_LEAF(node) ( (node) |= (1 << (INT_BITS - 1)) )
+#define IS_LEAF(node) ( (1 << 31) & (node) )
+
+#define GET_SYM(node) ( (node) & ((1 << CHAR_BITS) - 1) )
+#define SET_SYM(node, sym) ( (node) |= (sym) )
+
+#define GET_IND(node) ( node )
+#define SET_IND(node, ind) ( (node) |= (ind) )
+
+#define SET_REST(node) 
+
+#define CLR_NODE(node) ( (node) &= 0 )
+
+typedef struct bits {
+	unsigned int value : 16;
+	unsigned int rest : 12;
+	unsigned int type : 2;
+} bits;
+
+typedef union node {
+	char sym;
+	short int index;
+	bits mask;
+} node_t;
+
+typedef struct tree4 {
+	node_t children[4];
+} tree4;
+
+typedef struct tree16 {
+	node_t children[16];
+} tree16;
+
+int get_size_block(huff_tree *root, int depth);
+
+int tree_to_tree4(huff_tree *root, tree4 *root4, int index, int free_space, int child_num, int depth);
+
+int tree_to_tree4_v2(huff_tree *root, tree4 *root4, int index, int free_space, int child_num, int depth);
+
+int get_size_block16(huff_tree *root, int depth);
+
+int tree_to_tree16(huff_tree *root, tree16 *root16, int index, int free_space, int child_num, int depth);
+
+//-------test-------------
 
 int get_tree_size(huff_tree *root);
 

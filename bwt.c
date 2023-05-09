@@ -8,8 +8,19 @@
 
 int is_sorted(const char *string, int *arr, int start, int end);
 
+static long int calls = 0;
+static long int cmps = 0;
+static int max_cmp = 0;
+
+// profile says "81% of time is cmp_str"
+// last time work was in direction of z-function of cyclic shifts of string
+// and dynamic calcylation of z-func
+// when cmp_str is called this result writen to "matrix" of z-func
 int cmp_str(const char *string, int pos1, int pos2, int leng) {
+	calls++;
 	for (int i = 0; i < leng && string[pos1] == string[pos2]; i++) {
+		cmps++;
+		if (i > max_cmp) max_cmp = i;
 		pos1 = (pos1 + 1) % leng;
 		pos2 = (pos2 + 1) % leng;
 	}
@@ -248,5 +259,7 @@ int main(int argc, char *argv[]) {
 		clock_t end = clock();
 		printf("time: %f\n", (float)(end - beg) / CLOCKS_PER_SEC);
 	}
+	printf("calls: %ld, cmps: %ld, cmps/call: %f\n", calls, cmps, (double)cmps / (double)calls);
+	printf("max cmps: %d\n", max_cmp);
 	return 0;
 }

@@ -129,6 +129,8 @@ int decode_text_new(FILE *input, FILE *output, tree4 *tree) {
 	}
 }
 
+
+
 int decode_text16(FILE *input, FILE *output, tree16 *tree) {
 	unsigned char sym;
 	char outsym;
@@ -138,6 +140,8 @@ int decode_text16(FILE *input, FILE *output, tree16 *tree) {
 	buff.sym[0] = sym;
 
 	int ind = 0;
+
+	int ind_reversed[16] = { 0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15 };
 
 	int bits_used = 8;
 	while (leaf_type != STOP) {
@@ -150,6 +154,7 @@ int decode_text16(FILE *input, FILE *output, tree16 *tree) {
 
 		
 		while (bits_used < 8) {
+
 			int chld_ind = GET_BIT(buff.sym[0], 0) * 8 + GET_BIT(buff.sym[0], 1) * 4 + GET_BIT(buff.sym[0], 2) * 2 + GET_BIT(buff.sym[0], 3);
 			if (tree[ind].children[chld_ind].mask.type != INTERNAL) {
 				leaf_type = tree[ind].children[chld_ind].mask.type;

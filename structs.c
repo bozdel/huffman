@@ -244,7 +244,8 @@ huff_tree *remove_zeros(huff_tree *arr) {
 
 	int i = 0;
 	while (i < 256 && arr[i].freq == 0) i++;
-	head = &arr[i]; // fix possible error: "i" can be 256 which means out of boundaries (arr[256])
+	if (i == 256) return NULL;
+	head = &arr[i];
 
 	for ( ; i < 255; i++) {
 		arr[i].next = &arr[i+1];

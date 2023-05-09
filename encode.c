@@ -6,7 +6,7 @@
 // #include "debug.h"
 
 huff_tree *create_huff_tree(FILE *input, huff_tree **mem_block_ptr) {
-	huff_tree *freqs = (huff_tree*)calloc(256, sizeof(huff_tree));
+	huff_tree *freqs = (huff_tree*)calloc(257, sizeof(huff_tree)); // 256 syms + safeword
 	*mem_block_ptr = freqs; //for further freeing tree
 
 	//getting symbols' frequencies
@@ -20,10 +20,11 @@ huff_tree *create_huff_tree(FILE *input, huff_tree **mem_block_ptr) {
 	insertion_sort(freqs, 256);
 
 	//removing redundant structs for unused symbols. making list
-	huff_tree *head = remove_zeros(freqs);										 //!!!---fix memory leaking---!!!
+	huff_tree *head = remove_zeros(freqs);
+	if (!head) return NULL;
 
 	//adding safeword to denote end of file
-	huff_tree *safeword = (huff_tree*)calloc(1, sizeof(huff_tree));
+	huff_tree *safeword = &freqs[256];
 	safeword->next = head;
 	safeword->type = STOP;
 	head = safeword;
@@ -154,7 +155,15 @@ int encode(const char *input_path, const char *output_path) {
 	}
 
 	huff_tree *mem_block_ptr = NULL; //for further freeing tree;
+
+	//   !!!--------fix creation tree with depth bigger then bit_code.code field bit-width--------!!!
 	huff_tree *tree = create_huff_tree(input, &mem_block_ptr);
+	if (!tree) {
+		fclose(input);
+		fclose(output);
+		free(mem_block_ptr);
+		return -1;
+	}
 
 	//to contain table (including stop sequence)
 	bit_code *table = (bit_code*)calloc(257, sizeof(bit_code));
